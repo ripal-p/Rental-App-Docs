@@ -1,0 +1,720 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Vehicle tracking ingestion",
+    "version": "1.0.0",
+    "description": "Only Tracking ingestion is public API-enabled. Bearer keys are scoped to organisation/provider/devices; human dashboard roles are not API credentials. Requires active entitlement. Maximum 60 requests/key/minute, 100 events/batch, JSON 256 KiB or binary 64 KiB. Delayed events are accepted from 2000 through five minutes ahead of server time. Identical event retries are safe; conflicting content fails. Latitude/longitude must appear together; provide a registered device or vehicle and position or odometer evidence."
+  },
+  "servers": [{ "url": "/" }],
+  "paths": {
+    "/api/v1/tracking/events": {
+      "post": {
+        "operationId": "ingestTrackingEvents",
+        "summary": "Accept registered-device telemetry",
+        "security": [{ "TrackingKey": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "properties": {
+                  "events": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "eventId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100,
+                          "pattern": "^[a-zA-Z0-9_.:-]+$"
+                        },
+                        "deviceId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100,
+                          "pattern": "^[a-zA-Z0-9_.:-]+$"
+                        },
+                        "vehicleId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100,
+                          "pattern": "^[a-zA-Z0-9_.:-]+$"
+                        },
+                        "observedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                        },
+                        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+                        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+                        "speedKph": { "type": "number", "minimum": 0, "maximum": 400 },
+                        "heading": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
+                        "odometerMetres": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 2000000000
+                        },
+                        "ignition": { "type": "boolean" },
+                        "fixValid": { "default": true, "type": "boolean" },
+                        "accuracyMetres": { "type": "number", "minimum": 0, "maximum": 10000 }
+                      },
+                      "required": ["eventId", "observedAt"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["events"],
+                "additionalProperties": false
+              },
+              "example": {
+                "events": [
+                  {
+                    "eventId": "example-001",
+                    "deviceId": "example-device",
+                    "observedAt": "2026-10-20T00:00:00Z",
+                    "latitude": -27.47,
+                    "longitude": 153.02,
+                    "speedKph": 35,
+                    "heading": 90,
+                    "odometerMetres": 120000,
+                    "ignition": true,
+                    "fixValid": true
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Durably accepted, including identical retries; not invoiced or charged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "accepted": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                    "duplicates": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                  },
+                  "required": ["accepted", "duplicates"],
+                  "additionalProperties": false
+                },
+                "example": { "accepted": 1, "duplicates": 0 }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid payload, codec, CRC or observation bounds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_FAILED",
+                    "message": "Invalid payload, codec, CRC or observation bounds"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid, expired or revoked credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Invalid, expired or revoked credentials"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tracking entitlement unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "ENTITLEMENT_REQUIRED",
+                    "message": "Tracking entitlement unavailable"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Registered device or assignment unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "Registered device or assignment unavailable"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Event ID reused with different content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "IDEMPOTENCY_CONFLICT",
+                    "message": "Event ID reused with different content"
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds its limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_FAILED",
+                    "message": "Request body exceeds its limit"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "60 requests per key per minute; respect Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "RATE_LIMITED",
+                    "message": "60 requests per key per minute; respect Retry-After"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds before retry",
+                "schema": { "type": "integer" },
+                "example": 60
+              }
+            }
+          },
+          "500": {
+            "description": "Observation could not be accepted; retry with the same event IDs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "INGESTION_FAILED",
+                    "message": "Observation could not be accepted; retry with the same event IDs"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ingestion is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": { "code": "SERVICE_DISABLED", "message": "Ingestion is not configured" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tracking/teltonika": {
+      "post": {
+        "operationId": "ingestTeltonikaFrame",
+        "summary": "Accept an authenticated Codec 8/8E gateway frame",
+        "description": "Private authenticated gateway sends one bounded AVL frame. CRC and IMEI are not authentication. Acknowledged record count is returned only after durable commit. Use stable device/frame content when retrying.",
+        "security": [{ "TrackingKey": [] }],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-device-id",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[0-9]{15}$" },
+            "example": "359000000000001"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": { "type": "string", "format": "binary", "maxLength": 65536 },
+              "example": "<binary Codec 8/8E frame; not a JSON string>"
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Durably accepted gateway records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "accepted": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                    "duplicates": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                    "acknowledgedRecords": { "type": "integer", "minimum": 1, "maximum": 100 }
+                  },
+                  "required": ["accepted", "duplicates", "acknowledgedRecords"],
+                  "additionalProperties": false
+                },
+                "example": { "accepted": 1, "duplicates": 0, "acknowledgedRecords": 1 }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid payload, codec, CRC or observation bounds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_FAILED",
+                    "message": "Invalid payload, codec, CRC or observation bounds"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid, expired or revoked credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Invalid, expired or revoked credentials"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tracking entitlement unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "ENTITLEMENT_REQUIRED",
+                    "message": "Tracking entitlement unavailable"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Registered device or assignment unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "Registered device or assignment unavailable"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Event ID reused with different content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "IDEMPOTENCY_CONFLICT",
+                    "message": "Event ID reused with different content"
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds its limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_FAILED",
+                    "message": "Request body exceeds its limit"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "60 requests per key per minute; respect Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "RATE_LIMITED",
+                    "message": "60 requests per key per minute; respect Retry-After"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds before retry",
+                "schema": { "type": "integer" },
+                "example": 60
+              }
+            }
+          },
+          "500": {
+            "description": "Observation could not be accepted; retry with the same event IDs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": {
+                    "code": "INGESTION_FAILED",
+                    "message": "Observation could not be accepted; retry with the same event IDs"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ingestion is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      },
+                      "required": ["code", "message"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "error": { "code": "SERVICE_DISABLED", "message": "Ingestion is not configured" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "TrackingKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Registered organisation/provider/device-scoped credential. Never put keys/tenant IDs in URLs, screenshots or logs. Request credential provisioning through the approved service operator."
+      }
+    }
+  }
+}

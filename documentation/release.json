@@ -1,0 +1,29 @@
+{
+  "version": "0.3.0",
+  "audience": "public",
+  "lifecycle": "development",
+  "font": "Geist",
+  "files": {
+    "index.md": "5f5bc4c8fdfdcc1b684537faadc39172242d7a6bd038fcc6d6a5acdd604286b8",
+    "customer/index.md": "81cbd0f9e7f5543b23ffcf0ece9a900a999cea22659067098bd81b1600c85077",
+    "affiliate/index.md": "f3f46c15f1bf29cdf487a8edbf0666a4a3bc9525e5b0153b0f955a0a30e09d2b",
+    "status-and-support.md": "38cb868640e3ebaec870f2f19d04b1d99b7bc800696b2355afcbf92298586507",
+    "api/tracking.md": "47840289ca584950a55b72c143eb8c20cd7265f5398fff07da17e7f6154598d7",
+    "assets/tracking-api-v1.png": "1bcba294bdf83e41deb169bd68fd69164541c8b564a775fb7e9a9ab1a50167de",
+    "screenshots.md": "8cf26b1b959d8d55859887b2cc670e1dc15e0331266d5dd1097bcc485eafebfc",
+    "api/v1/openapi.json": "e51d18969cfbca27791015617182fb06ad5234a69a7c2db1be332fdee17b4c28",
+    "assets/fonts/Geist-Variable.woff2": "9ce2d97863cab59a0c7522534112d6c42a4e25c0e6b2ab37766761b0f82cfbd6",
+    "assets/fonts/OFL.txt": "930853ee1daa68554d9e35c8a9175affb74f699fad9a5da6ee5ebe76379d9137",
+    "assets/theme.css": "728cc2e72fdeb6e5fa1e47b2de51b6392046309c0d7f8ff05bd59d1ebe92ddc2"
+  },
+  "availability": [
+    {
+      "role": "CUSTOMER",
+      "availability": "unreleased"
+    },
+    {
+      "role": "AFFILIATE_PARTNER",
+      "availability": "unreleased"
+    }
+  ]
+}
